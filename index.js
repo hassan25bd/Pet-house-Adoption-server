@@ -93,175 +93,273 @@ app.post('/logout', (req, res) => {
 
 // ── USERS ─────────────────────────────────────────────────────────
 app.post('/users', async (req, res) => {
-  const user = req.body;
-  const exists = await req.users.findOne({ email: user.email });
-  if (exists) return res.send({ message: 'User already exists', insertedId: null });
-  const result = await req.users.insertOne({ ...user, createdAt: new Date() });
-  res.send(result);
+  try {
+    const user = req.body;
+    const exists = await req.users.findOne({ email: user.email });
+    if (exists) return res.send({ message: 'User already exists', insertedId: null });
+    const result = await req.users.insertOne({ ...user, createdAt: new Date() });
+    res.send(result);
+  } catch (err) {
+    console.error('POST /users error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 // ── PETS – PUBLIC ─────────────────────────────────────────────────
 app.get('/pets/featured', async (req, res) => {
-  const pets = await req.pets.find({ status: 'available' }).sort({ createdAt: -1 }).limit(6).toArray();
-  res.send(pets);
+  try {
+    const pets = await req.pets.find({ status: 'available' }).sort({ createdAt: -1 }).limit(6).toArray();
+    res.send(pets);
+  } catch (err) {
+    console.error('GET /pets/featured error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 // Keep legacy alias
 app.get('/featured-pets', async (req, res) => {
-  const pets = await req.pets.find({ status: 'available' }).sort({ createdAt: -1 }).limit(6).toArray();
-  res.send(pets);
+  try {
+    const pets = await req.pets.find({ status: 'available' }).sort({ createdAt: -1 }).limit(6).toArray();
+    res.send(pets);
+  } catch (err) {
+    console.error('GET /featured-pets error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.get('/pets', async (req, res) => {
-  const { search, species, sort } = req.query;
-  const query = { status: 'available' };
-  if (search)                      query.name    = { $regex: search, $options: 'i' };
-  if (species && species !== 'all') query.species = { $in: [species] };
+  try {
+    const { search, species, sort } = req.query;
+    const query = { status: 'available' };
+    if (search)                      query.name    = { $regex: search, $options: 'i' };
+    if (species && species !== 'all') query.species = { $in: [species] };
 
-  const sortMap = {
-    price_asc:  { adoptionFee: 1 },
-    price_desc: { adoptionFee: -1 },
-    age_asc:    { age: 1 },
-    age_desc:   { age: -1 },
-  };
-  const sortOption = sortMap[sort] || { createdAt: -1 };
-  const pets = await req.pets.find(query).sort(sortOption).toArray();
-  res.send(pets);
+    const sortMap = {
+      price_asc:  { adoptionFee: 1 },
+      price_desc: { adoptionFee: -1 },
+      age_asc:    { age: 1 },
+      age_desc:   { age: -1 },
+    };
+    const sortOption = sortMap[sort] || { createdAt: -1 };
+    const pets = await req.pets.find(query).sort(sortOption).toArray();
+    res.send(pets);
+  } catch (err) {
+    console.error('GET /pets error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.get('/stats', async (req, res) => {
-  const [totalPets, adoptedPets, availablePets, totalUsers] = await Promise.all([
-    req.pets.countDocuments(),
-    req.pets.countDocuments({ status: 'adopted' }),
-    req.pets.countDocuments({ status: 'available' }),
-    req.users.countDocuments(),
-  ]);
-  res.send({ totalPets, adoptedPets, availablePets, totalUsers });
+  try {
+    const [totalPets, adoptedPets, availablePets, totalUsers] = await Promise.all([
+      req.pets.countDocuments(),
+      req.pets.countDocuments({ status: 'adopted' }),
+      req.pets.countDocuments({ status: 'available' }),
+      req.users.countDocuments(),
+    ]);
+    res.send({ totalPets, adoptedPets, availablePets, totalUsers });
+  } catch (err) {
+    console.error('GET /stats error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.get('/pets/:id', async (req, res) => {
-  const pet = await req.pets.findOne({ _id: new ObjectId(req.params.id) });
-  if (!pet) return res.status(404).send({ message: 'Pet not found' });
-  res.send(pet);
+  try {
+    const pet = await req.pets.findOne({ _id: new ObjectId(req.params.id) });
+    if (!pet) return res.status(404).send({ message: 'Pet not found' });
+    res.send(pet);
+  } catch (err) {
+    console.error('GET /pets/:id error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 // ── PETS – PRIVATE ────────────────────────────────────────────────
 app.post('/pets', verifyToken, async (req, res) => {
-  const result = await req.pets.insertOne({ ...req.body, status: 'available', createdAt: new Date() });
-  res.send(result);
+  try {
+    const result = await req.pets.insertOne({ ...req.body, status: 'available', createdAt: new Date() });
+    res.send(result);
+  } catch (err) {
+    console.error('POST /pets error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.get('/pets/owner/my-listings', verifyToken, async (req, res) => {
-  const pets = await req.pets.find({ ownerEmail: req.user.email }).sort({ createdAt: -1 }).toArray();
-  const petsWithCounts = await Promise.all(
-    pets.map(async (pet) => {
-      const count = await req.requests.countDocuments({ petId: pet._id.toString() });
-      return { ...pet, requestCount: count };
-    })
-  );
-  res.send(petsWithCounts);
+  try {
+    const pets = await req.pets.find({ ownerEmail: req.user.email }).sort({ createdAt: -1 }).toArray();
+    const petsWithCounts = await Promise.all(
+      pets.map(async (pet) => {
+        const count = await req.requests.countDocuments({ petId: pet._id.toString() });
+        return { ...pet, requestCount: count };
+      })
+    );
+    res.send(petsWithCounts);
+  } catch (err) {
+    console.error('GET /pets/owner/my-listings error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 // Keep legacy alias
 app.get('/my-pets', verifyToken, async (req, res) => {
-  const pets = await req.pets.find({ ownerEmail: req.user.email }).sort({ createdAt: -1 }).toArray();
-  const petsWithCounts = await Promise.all(
-    pets.map(async (pet) => {
-      const count = await req.requests.countDocuments({ petId: pet._id.toString() });
-      return { ...pet, requestCount: count };
-    })
-  );
-  res.send(petsWithCounts);
+  try {
+    const pets = await req.pets.find({ ownerEmail: req.user.email }).sort({ createdAt: -1 }).toArray();
+    const petsWithCounts = await Promise.all(
+      pets.map(async (pet) => {
+        const count = await req.requests.countDocuments({ petId: pet._id.toString() });
+        return { ...pet, requestCount: count };
+      })
+    );
+    res.send(petsWithCounts);
+  } catch (err) {
+    console.error('GET /my-pets error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.put('/pets/:id', verifyToken, async (req, res) => {
-  const pet = await req.pets.findOne({ _id: new ObjectId(req.params.id) });
-  if (!pet) return res.status(404).send({ message: 'Pet not found' });
-  if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
-  const { _id, ...updateData } = req.body;
-  const result = await req.pets.updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { ...updateData, updatedAt: new Date() } }
-  );
-  res.send(result);
+  try {
+    const pet = await req.pets.findOne({ _id: new ObjectId(req.params.id) });
+    if (!pet) return res.status(404).send({ message: 'Pet not found' });
+    if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
+    const { _id, ...updateData } = req.body;
+    const result = await req.pets.updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: { ...updateData, updatedAt: new Date() } }
+    );
+    res.send(result);
+  } catch (err) {
+    console.error('PUT /pets/:id error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.delete('/pets/:id', verifyToken, async (req, res) => {
-  const pet = await req.pets.findOne({ _id: new ObjectId(req.params.id) });
-  if (!pet) return res.status(404).send({ message: 'Pet not found' });
-  if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
-  await req.requests.deleteMany({ petId: req.params.id });
-  const result = await req.pets.deleteOne({ _id: new ObjectId(req.params.id) });
-  res.send(result);
+  try {
+    const pet = await req.pets.findOne({ _id: new ObjectId(req.params.id) });
+    if (!pet) return res.status(404).send({ message: 'Pet not found' });
+    if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
+    await req.requests.deleteMany({ petId: req.params.id });
+    const result = await req.pets.deleteOne({ _id: new ObjectId(req.params.id) });
+    res.send(result);
+  } catch (err) {
+    console.error('DELETE /pets/:id error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 // ── REQUESTS ──────────────────────────────────────────────────────
 app.post('/requests', verifyToken, async (req, res) => {
-  const { petId, userEmail, userName, pickupDate, message } = req.body;
-  const pet = await req.pets.findOne({ _id: new ObjectId(petId) });
-  if (!pet) return res.status(404).send({ message: 'Pet not found' });
-  if (pet.status === 'adopted') return res.status(400).send({ message: 'This pet has already been adopted' });
-  if (pet.ownerEmail === userEmail) return res.status(403).send({ message: 'You cannot adopt your own pet' });
+  try {
+    const { petId, userEmail, userName, pickupDate, message } = req.body;
+    const pet = await req.pets.findOne({ _id: new ObjectId(petId) });
+    if (!pet) return res.status(404).send({ message: 'Pet not found' });
+    if (pet.status === 'adopted') return res.status(400).send({ message: 'This pet has already been adopted' });
+    if (pet.ownerEmail === userEmail) return res.status(403).send({ message: 'You cannot adopt your own pet' });
 
-  const existing = await req.requests.findOne({ petId, userEmail });
-  if (existing) return res.status(400).send({ message: 'You have already requested to adopt this pet' });
+    const existing = await req.requests.findOne({ petId, userEmail });
+    if (existing) return res.status(400).send({ message: 'You have already requested to adopt this pet' });
 
-  const result = await req.requests.insertOne({
-    petId, petName: pet.name, petImage: pet.image, ownerEmail: pet.ownerEmail,
-    userEmail, userName, pickupDate, message, status: 'pending', requestDate: new Date(),
-  });
-  res.send(result);
+    const result = await req.requests.insertOne({
+      petId, petName: pet.name, petImage: pet.image, ownerEmail: pet.ownerEmail,
+      userEmail, userName, pickupDate, message, status: 'pending', requestDate: new Date(),
+    });
+    res.send(result);
+  } catch (err) {
+    console.error('POST /requests error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.get('/requests/my', verifyToken, async (req, res) => {
-  const requests = await req.requests.find({ userEmail: req.user.email }).sort({ requestDate: -1 }).toArray();
-  res.send(requests);
+  try {
+    const requests = await req.requests.find({ userEmail: req.user.email }).sort({ requestDate: -1 }).toArray();
+    res.send(requests);
+  } catch (err) {
+    console.error('GET /requests/my error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 // Legacy alias
 app.get('/my-requests', verifyToken, async (req, res) => {
-  const requests = await req.requests.find({ userEmail: req.user.email }).sort({ requestDate: -1 }).toArray();
-  res.send(requests);
+  try {
+    const requests = await req.requests.find({ userEmail: req.user.email }).sort({ requestDate: -1 }).toArray();
+    res.send(requests);
+  } catch (err) {
+    console.error('GET /my-requests error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.get('/requests/pet/:petId', verifyToken, async (req, res) => {
-  const pet = await req.pets.findOne({ _id: new ObjectId(req.params.petId) });
-  if (!pet) return res.status(404).send({ message: 'Pet not found' });
-  if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
-  const requests = await req.requests.find({ petId: req.params.petId }).sort({ requestDate: -1 }).toArray();
-  res.send(requests);
+  try {
+    const pet = await req.pets.findOne({ _id: new ObjectId(req.params.petId) });
+    if (!pet) return res.status(404).send({ message: 'Pet not found' });
+    if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
+    const requests = await req.requests.find({ petId: req.params.petId }).sort({ requestDate: -1 }).toArray();
+    res.send(requests);
+  } catch (err) {
+    console.error('GET /requests/pet/:petId error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.patch('/requests/:id/approve', verifyToken, async (req, res) => {
-  const request = await req.requests.findOne({ _id: new ObjectId(req.params.id) });
-  if (!request) return res.status(404).send({ message: 'Request not found' });
-  const pet = await req.pets.findOne({ _id: new ObjectId(request.petId) });
-  if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
+  try {
+    const request = await req.requests.findOne({ _id: new ObjectId(req.params.id) });
+    if (!request) return res.status(404).send({ message: 'Request not found' });
+    const pet = await req.pets.findOne({ _id: new ObjectId(request.petId) });
+    if (!pet) return res.status(404).send({ message: 'Pet not found' });
+    if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
 
-  await req.requests.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'approved' } });
-  await req.requests.updateMany(
-    { petId: request.petId, _id: { $ne: new ObjectId(req.params.id) } },
-    { $set: { status: 'rejected' } }
-  );
-  await req.pets.updateOne({ _id: new ObjectId(request.petId) }, { $set: { status: 'adopted' } });
-  res.send({ success: true });
+    await req.requests.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'approved' } });
+    await req.requests.updateMany(
+      { petId: request.petId, _id: { $ne: new ObjectId(req.params.id) } },
+      { $set: { status: 'rejected' } }
+    );
+    await req.pets.updateOne({ _id: new ObjectId(request.petId) }, { $set: { status: 'adopted' } });
+    res.send({ success: true });
+  } catch (err) {
+    console.error('PATCH /requests/:id/approve error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.patch('/requests/:id/reject', verifyToken, async (req, res) => {
-  const request = await req.requests.findOne({ _id: new ObjectId(req.params.id) });
-  if (!request) return res.status(404).send({ message: 'Request not found' });
-  const pet = await req.pets.findOne({ _id: new ObjectId(request.petId) });
-  if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
-  const result = await req.requests.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'rejected' } });
-  res.send(result);
+  try {
+    const request = await req.requests.findOne({ _id: new ObjectId(req.params.id) });
+    if (!request) return res.status(404).send({ message: 'Request not found' });
+    const pet = await req.pets.findOne({ _id: new ObjectId(request.petId) });
+    if (!pet) return res.status(404).send({ message: 'Pet not found' });
+    if (pet.ownerEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
+    const result = await req.requests.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'rejected' } });
+    res.send(result);
+  } catch (err) {
+    console.error('PATCH /requests/:id/reject error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
 });
 
 app.delete('/requests/:id', verifyToken, async (req, res) => {
-  const request = await req.requests.findOne({ _id: new ObjectId(req.params.id) });
-  if (!request) return res.status(404).send({ message: 'Request not found' });
-  if (request.userEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
-  const result = await req.requests.deleteOne({ _id: new ObjectId(req.params.id) });
-  res.send(result);
+  try {
+    const request = await req.requests.findOne({ _id: new ObjectId(req.params.id) });
+    if (!request) return res.status(404).send({ message: 'Request not found' });
+    if (request.userEmail !== req.user.email) return res.status(403).send({ message: 'Forbidden' });
+    const result = await req.requests.deleteOne({ _id: new ObjectId(req.params.id) });
+    res.send(result);
+  } catch (err) {
+    console.error('DELETE /requests/:id error:', err.message);
+    res.status(500).send({ message: err.message || 'Server error' });
+  }
+});
+
+// ── GLOBAL ERROR HANDLER ──────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
+  res.status(500).send({ message: err.message || 'Internal server error' });
 });
 
 // ── START ─────────────────────────────────────────────────────────
