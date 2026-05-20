@@ -29,7 +29,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 // ── LAZY MONGODB CONNECTION (serverless-safe) ─────────────────────
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+const uri = process.env.MONGODB_URI ||
+  `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.awl6nxh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
   serverApi: { version: ServerApiVersion.v1, strict: true, deprecationErrors: true },
