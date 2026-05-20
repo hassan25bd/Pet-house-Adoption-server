@@ -82,6 +82,8 @@ async function run() {
       res.send({ totalPets, adoptedPets, availablePets, totalUsers });
     });
 
+    // Health check endpoint for uptime monitoring
+    app.get('/health', (req, res) => res.send({ status: 'ok', uptime: process.uptime() }));
     app.get('/', (req, res) => res.send('🐾 Pet Adoption House Server is running'));
 
     await client.db('admin').command({ ping: 1 });
